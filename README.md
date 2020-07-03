@@ -7,15 +7,15 @@ Note: I am an absolute beginner when it comes to nodeJS, JavaScript and even git
 
 ## Install
 
-1.) Clone or download this repo
-2.) cd into directory
-3.) run 'npm install'
-4.) copy new udev rule 'sudo cp udev/99-shuttlexpress.rules /etc/udev/rules.d/'
-5.) Setup a rule in cncjs to auto-start the ShuttleExpress pendant like in the animated gif below
+- Clone or download this repo
+- cd into directory
+- run 'npm install'
+- copy new udev rule 'sudo cp udev/99-shuttlexpress.rules /etc/udev/rules.d/'
+- setup a rule in cncjs to auto-start the ShuttleExpress pendant like in the animated gif below
 
 ![Adjust cncjs settings to auto-start ShuttleExpress pendant](https://github.com/Duffmann/ShuttleGRBL/blob/master/doc/cncjs_event_settings_for_ShuttleJog.gif)
 
-Make sure to adjust the path ('/home/pi/ShuttleExpress/bin/cncjs-pendant-keyboard' in the example) and the name of your GRBL's serial port (here: /dev/ttyACM0) to your own setup.
+Make sure to adjust the path (here '/home/pi/ShuttleExpress/bin/cncjs-pendant-keyboard' in the example) and the name of your GRBL's serial port (here: /dev/ttyACM0) to your own setup.
 
 ## Usage
 
@@ -32,3 +32,4 @@ After selecting the Axis you want to jog you can either use the Shuttle-Wheel or
     * If you keep the leftmost button pressed while turing the dial it will Jog by 10x 0.01mm = 0.1mm per tick
     * If you keep the rightmost button pressed while turing the dial it will Jog by 100x 0.01mm = 1mm per tick
     
+Here you can find a video showing jogging my CNC machine with Shuttle Express in action https://github.com/Duffmann/ShuttleGRBL/blob/master/doc/Jogging_GRBL_ShuttleExpress.mp4
