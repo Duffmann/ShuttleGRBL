@@ -32,4 +32,4 @@ After selecting the Axis you want to jog you can either use the Shuttle-Wheel or
     * If you keep the leftmost button pressed while turing the dial it will Jog by 10x 0.01mm = 0.1mm per tick
     * If you keep the rightmost button pressed while turing the dial it will Jog by 100x 0.01mm = 1mm per tick
     
-[Here you can find a video showing jogging my CNC machine with Shuttle Express in action] https://youtu.be/t8IjArDwbs0
+[Here you can find a video showing jogging my CNC machine with Shuttle Express in action](https://youtu.be/t8IjArDwbs0)
