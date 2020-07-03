@@ -27,7 +27,7 @@ After selecting the Axis you want to jog you can either use the Shuttle-Wheel or
   * Turning the Shuttle Wheel left will jog towards positive coordinates, to the right will jog into negative coordinate direction
     * Speed of Jogging depends on how far you turn the wheel. Default is 5x the number of ticks that you turn the dial in mm/s
       * Example: Turning the wheel 5 ticks to the left will jog your selected axis with 25mm/s, 7 ticks to the right jogs -35mm/s
-      * If you want to change this you can simply edit the line '''const JOG_SPEEDUP = 5
+      * If you want to change this you can simply edit the line ```const JOG_SPEEDUP = 5´´´
   * Releasing the Shuttle Wheel to its center position will immedately cancel all jog commands queued by GRBL and stop your machine
 * Turn the Dial left will jog towards more positive coordinates, to the right will jog into negative coordinate direction
   * Turning the dial wothout any buttons pressed will jog by 0.01mm per tick
