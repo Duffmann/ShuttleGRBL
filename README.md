@@ -11,7 +11,7 @@ Note: I am an absolute beginner when it comes to nodeJS, JavaScript and even git
 - cd into the directory
 - run 'npm install'
 - copy new udev rule 'sudo cp udev/99-shuttlexpress.rules /etc/udev/rules.d/'
-- active new udev rules by rebooting your raspi or ''
+- active new udev rules by rebooting your raspi or 'sudo udevadm control --reload-rules; sudo udevadm trigger'
 - setup a rule in cncjs to auto-start the ShuttleExpress pendant like in the animated gif below
 
 ![Adjust cncjs settings to auto-start ShuttleExpress pendant](https://github.com/Duffmann/ShuttleGRBL/blob/master/doc/cncjs_event_settings_for_ShuttleJog.gif)
@@ -33,4 +33,4 @@ After selecting the Axis you want to jog you can either use the Shuttle-Wheel or
     * If you keep the leftmost button pressed while turing the dial it will Jog by 10x 0.01mm = 0.1mm per tick
     * If you keep the rightmost button pressed while turing the dial it will Jog by 100x 0.01mm = 1mm per tick
     
-[Here you can find a video showing jogging my CNC machine with Shuttle Express in action](https://youtu.be/t8IjArDwbs0)
+[Video showing jogging my CNC machine with Shuttle Express in action](https://youtu.be/t8IjArDwbs0)
