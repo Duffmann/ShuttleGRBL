@@ -1,0 +1,236 @@
+#!/usr/bin/env node
+
+// Turn off pointer function of Countour Shuttle Device (scrolling windows with Shuttle Ring)
+const { exec } = require('child_process');
+exec('xinput disable $(xinput list --id-only "pointer:Contour Design ShuttleXpress")', (err, stdout, stderr) => {
+  if (err) {
+    console.error(err)
+  } 
+});
+
+var program = require("commander");
+var inquirer = require("inquirer");
+var serialport = require("serialport");
+var hid = require("node-hid");
+var pkg = require("../package.json");
+var serverMain = require("../index");
+
+var options = {};
+
+program
+    .version(pkg.version)
+    .usage("-s <secret> -p <port> [options]")
+    .option("-l, --list", "list available ports then exit")
+    .option("-s, --secret", "the secret key stored in the ~/.cncrc file")
+    .option("-p, --port <port>", "path or name of serial port")
+    .option("-b, --baudrate <baudrate>", "baud rate (default: 115200)", 115200)
+    .option(
+        "--socket-address <address>",
+        "socket address or hostname (default: localhost)",
+        "localhost"
+    )
+    .option("--socket-port <port>", "socket port (default: 8000)", 8000)
+    .option(
+        "--access-token-lifetime <lifetime>",
+        "access token lifetime in seconds or a time span string (default: 30d)",
+        "30d"
+    );
+
+program.parse(process.argv);
+
+var options = {
+    secret: program.secret,
+    list: program.list,
+    port: program.port,
+    baudrate: program.baudrate,
+    socketAddress: program.socketAddress,
+    socketPort: program.socketPort,
+    accessTokenLifetime: program.accessTokenLifetime
+};
+
+if (options.list) {
+    serialport.list(function(err, ports) {
+        if (err) {
+            console.error(err);
+            process.exit(1);
+        }
+        ports.forEach(function(port) {
+            console.log(port.comName);
+        });
+    });
+    return;
+}
+
+var store = {
+    controller: {
+        state: {},
+        settings: {}
+    },
+    sender: {
+        status: {}
+    }
+};
+
+const JOG_SPEEDUP = 5 // Shuttle Ring is (-)1..7 hence 5 (speedup) * 7 (max Shuttle ring value) = 35mm/s = 2100mm/min
+const GRBL_PLANNER_BLOCKS = 36 // STM103 GRBL has way more planner blocks compared to GRBL MEGA
+
+var prev_data = [0,0,0,0,0];
+var cur_axis_accel;
+var joggingOn = false;
+
+var ShuttleExpressData = {
+    JogDial : {state:null, change:false},
+    Shuttle : {state:0, change:false},
+    JogAxis: {state:null, change:false},
+    JogMultiplier : {state:1, change:false}
+    };
+    
+// Callback for the interval timer based-jogging (see https://github.com/gnea/grbl/wiki/Grbl-v1.1-Jogging#joystick-implementation)
+function timedJog() {
+    var v = ShuttleExpressData.Shuttle.state * JOG_SPEEDUP;
+	var dt = Math.max( (Math.pow(v,2) / (2 * cur_axis_accel * (GRBL_PLANNER_BLOCKS-1))).toFixed(3) , 0.01);
+	var s = (v * dt).toFixed(3);
+	var v_abs_mm_per_min = Math.abs(v)*60;
+
+	if (joggingOn) {
+		// Put a small increment into Planner Queue
+		socket.emit('write', options.port, "$J=G91 "+ ShuttleExpressData.JogAxis.state + s + " F"+ v_abs_mm_per_min + "\n")
+		// Recursive repeat: Call this function again after dt (in ms)
+		setTimeout(function() {
+			timedJog()
+		}, dt*1000);	
+	}
+}
+    
+function toGRBL() {
+	if (ShuttleExpressData.JogAxis.state != null && ShuttleExpressData.JogDial.change) {
+		socket.emit('write', options.port, "G91 G0 "+ ShuttleExpressData.JogAxis.state + (ShuttleExpressData.JogDial.state * ShuttleExpressData.JogMultiplier.state) +"\n");
+        socket.emit('write', options.port, "G90\n");
+        //socket.emit('write', options.port, "$J=G91F"+"1000"+ShuttleExpressData.JogAxis.state + (ShuttleExpressData.JogDial.state * ShuttleExpressData.JogMultiplier.state) +"\n");
+	}
+	
+	if (ShuttleExpressData.JogAxis.state != null && ShuttleExpressData.Shuttle.change) {
+		if (ShuttleExpressData.Shuttle.state == 0) {
+			joggingOn = false;
+            // Cancel all buffered jog commands by sending 0x85 to GRBL
+            socket.emit('write', options.port, "\x85")
+            // Stop streaming sync trick https://github.com/gnea/grbl/wiki/Grbl-v1.1-Jogging#joystick-implementation 
+            socket.emit('write', options.port, "G4P0\n");
+			console.log(" JOGGING STOPPED")
+		} else if (!joggingOn)  {
+			// We have an Axis set and a change of the Shuttlering (non-zero) --> go Jogging
+			joggingOn = true;
+			timedJog();
+		}
+	}	
+};    
+    
+var createServer = function(options) {
+
+    serverMain(options, function(err, socket) {
+        // Grbl
+        socket.on("Grbl:state", function(state) {
+            store.controller.state = state;
+        });
+        socket.on("Grbl:settings", function(settings) {
+            store.controller.settings = settings;
+        });
+
+        // Sender
+        socket.on("sender:status", function(data) {        });
+
+        var ShuttleExpress = new hid.HID(2867, 32);
+
+        ShuttleExpress.on("data", function(data) {
+	    // console.log("Shuttle Event Data: ", data);   
+
+	    ShuttleExpressData.Shuttle.state = (data[0]>127 ? -(256 - data[0]): data[0]);
+	    ShuttleExpressData.Shuttle.change = Boolean(data[0] != prev_data[0]); 
+	    
+	    switch(data[1] - prev_data[1]) {
+	    	case -1:
+	    	case 255:
+		    ShuttleExpressData.JogDial.state = -1;
+		    break;
+	    	case 1:
+	    	case -255:
+  		    ShuttleExpressData.JogDial.state = 1;
+	    	    break;
+	    }
+	    ShuttleExpressData.JogDial.change = Boolean(data[1] != prev_data[1]) && (ShuttleExpressData.JogDial.state != null);
+	
+	    // "X"-Axis Button pressed (B2)
+	    if ((data[3] & 0x20) && !(data[3] & 0x40) && !(data[3] & 0x80)) {
+        ShuttleExpressData.JogAxis.state = "X";
+        cur_axis_accel = parseFloat(store.controller.settings.settings.$120)
+	    }
+		
+	    // "Y"-Axis Button pressed (B3)
+	    if (!(data[3] & 0x20) && (data[3] & 0x40) && !(data[3] & 0x80)) {
+        ShuttleExpressData.JogAxis.state = "Y";
+        cur_axis_accel = parseFloat(store.controller.settings.settings.$121)
+	    }
+	    
+	    // "Z"-Axis Button pressed (B4)
+	    if (!(data[3] & 0x20) && !(data[3] & 0x40) && (data[3] & 0x80)) {
+        ShuttleExpressData.JogAxis.state = "Z";
+        cur_axis_accel = parseFloat(store.controller.settings.settings.$122)
+	    }
+
+        // If grbl settings are not available use low default acceleration for all axis
+        cur_axis_accel = (typeof cur_axis_accel == 'number') ? cur_axis_accel: 100;
+
+	    // Reset JogMultiplier so that overrides are only valid as long as key is pressed
+	    ShuttleExpressData.JogMultiplier.state = 0.01;
+	    
+	    // Jog fast speed Button pressed (B1)
+	    if ((data[3] & 0x10) && !(data[4] & 0x01)) {
+		ShuttleExpressData.JogMultiplier.state = 0.1;		
+	    }
+	    
+	    // Jog fast speed Button pressed (B5)
+	    if (!(data[3] & 0x10) && (data[4] & 0x01)) {
+		ShuttleExpressData.JogMultiplier.state = 1;		
+	    }
+
+        // Store current HID register data to compare for change next time
+	    prev_data = data;
+        
+        // Do whatever is needed...
+        toGRBL();
+
+        });
+    });
+};
+
+// --port option was given at command line
+if (options.port) {
+    createServer(options);
+    return;
+}
+
+// no port option was given at command line --> let user select from list
+serialport.list(function(err, ports) {
+    if (err) {
+        console.error(err);
+        process.exit(1);
+    }
+    const choices = ports.map(function(port) {
+        return port.comName;
+    });
+
+    inquirer
+        .prompt([
+            {
+                type: "list",
+                name: "port",
+                message: "Specify which port you want to use?",
+                choices: choices
+            }
+        ])
+        .then(function(answers) {
+            options.port = answers.port;
+
+            createServer(options);
+        });
+});
